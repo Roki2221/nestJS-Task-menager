@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
-import { TaskStatus } from './task-status.enum';
+import { TaskStatus } from '../task-status.enum';
 
 @Entity({ name: 'tasks' })
 export class Task {
@@ -38,4 +38,3 @@ export class Task {
   @UpdateDateColumn()
   updatedAt!: Date;
 }
-
