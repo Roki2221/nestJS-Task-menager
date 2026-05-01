@@ -2,7 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import type { Repository } from 'typeorm';
-import { Task } from '../src/tasks/task.entity';
+import { Task } from '../src/tasks/entities/task.entity';
 import { TaskStatus } from '../src/tasks/task-status.enum';
 import { TasksService } from '../src/tasks/tasks.service';
 
@@ -47,10 +47,9 @@ describe('TasksService', () => {
     it('throws NotFoundException when task not found', async () => {
       (repo.findOne as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.findOne('b4d0a6f5-0e44-4e4f-b708-2a2f7a8c0b91')).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.findOne('b4d0a6f5-0e44-4e4f-b708-2a2f7a8c0b91'),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });
-

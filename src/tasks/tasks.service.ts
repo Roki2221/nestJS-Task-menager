@@ -1,12 +1,11 @@
 import {
-  BadRequestException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
-import { Task } from './task.entity';
+import { Repository } from 'typeorm';
+import { Task } from './entities/task.entity';
 import { TaskStatus } from './task-status.enum';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -15,69 +14,68 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 export class TasksService {
   constructor(
     @InjectRepository(Task)
-    private readonly tasksRepository: Repository<Task>,
+    private readonly repo: Repository<Task>,
   ) {}
 
   async create(dto: CreateTaskDto): Promise<Task> {
+    const task = this.repo.create({
+      ...dto,
+      description: dto.description ?? null,
+      status: TaskStatus.PENDING,
+    });
+
     try {
-      const task = this.tasksRepository.create({
-        title: dto.title,
-        description: dto.description ?? null,
-        status: TaskStatus.PENDING,
-      });
-      return await this.tasksRepository.save(task);
-    } catch {
+      return await this.repo.save(task);
+    } catch (e) {
+      console.error(e);
       throw new InternalServerErrorException('Failed to create task');
     }
   }
 
-  async findAll(params: {
+  async findAll({
+    status,
+    page = 1,
+    limit = 10,
+  }: {
     status?: TaskStatus;
     page?: number;
     limit?: number;
-  }): Promise<{ data: Task[]; total: number; page: number; limit: number }> {
-    const page = params.page ?? 1;
-    const limit = params.limit ?? 10;
+  }) {
+    const safeLimit = Math.min(limit, 50);
 
-    const where: FindOptionsWhere<Task> = {};
-    if (params.status) where.status = params.status;
-
-    const [data, total] = await this.tasksRepository.findAndCount({
-      where,
+    const [data, total] = await this.repo.findAndCount({
+      where: status ? { status } : {},
       order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip: (page - 1) * safeLimit,
+      take: safeLimit,
     });
 
-    return { data, total, page, limit };
+    return { data, total, page, limit: safeLimit };
   }
 
   async findOne(id: string): Promise<Task> {
-    const task = await this.tasksRepository.findOne({ where: { id } });
-    if (!task) throw new NotFoundException(`Task with id "${id}" not found`);
+    const task = await this.repo.findOneBy({ id });
+    if (!task) {
+      throw new NotFoundException(`Task with id "${id}" not found`);
+    }
     return task;
   }
 
   async update(id: string, dto: UpdateTaskDto): Promise<Task> {
-    const task = await this.findOne(id);
+    const result = await this.repo.update(id, dto);
 
-    if (dto.title !== undefined) task.title = dto.title;
-    if (dto.description !== undefined) task.description = dto.description;
-    if (dto.status !== undefined) task.status = dto.status;
-
-    try {
-      return await this.tasksRepository.save(task);
-    } catch {
-      throw new BadRequestException('Failed to update task');
+    if (result.affected === 0) {
+      throw new NotFoundException(`Task with id "${id}" not found`);
     }
+
+    return this.findOne(id);
   }
 
   async remove(id: string): Promise<void> {
-    const task = await this.findOne(id);
-    try {
-      await this.tasksRepository.remove(task);
-    } catch {
-      throw new InternalServerErrorException('Failed to delete task');
+    const result = await this.repo.delete(id);
+
+    if (result.affected === 0) {
+      throw new NotFoundException(`Task with id "${id}" not found`);
     }
   }
 }
